@@ -1,0 +1,9 @@
+{
+  "num_samples": 6,
+  "num_timesteps": 5,
+  "num_features": 4,
+  "decay": 0.9,
+  "forcing": 0.05,
+  "baseline_alpha": 0.82,
+  "seed": 7
+}

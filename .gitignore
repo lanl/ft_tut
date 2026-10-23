@@ -1,0 +1,14 @@
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+.ipynb_checkpoints/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# External artifact roots are intentionally outside the repo by default.
+

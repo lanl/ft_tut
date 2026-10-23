@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spus-ft"
+version = "0.1.0"
+description = "Scaffold for a foundation-model scientific tutorial workflow"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+notebook = [
+  "ipykernel>=6.0",
+  "jupyterlab>=4.0",
+]
+spus = [
+  "huggingface_hub",
+  "matplotlib",
+  "netCDF4",
+  "safetensors",
+  "torch",
+]
+
+[project.scripts]
+spus-ft-demo = "spus_ft.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["spus_ft"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
