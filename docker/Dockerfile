@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=python:3.11-slim
+ARG BASE_IMAGE=nvidia/cuda:12.4.1-runtime-ubuntu22.04
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python-is-python3 \
     tini \
     && rm -rf /var/lib/apt/lists/*
 

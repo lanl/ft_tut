@@ -1,5 +1,7 @@
 # FMOD Tutorial Scaffold
 
+**Foundation Model Fine-Tuning Tutorial&#x20;**&#x68;as been acknowledged by NNSA for open-source release. O# **(O5229)**
+
 This repository contains the Phase 0 and Phase 1 scaffold for a scientist-facing
 tutorial on running pretrained foundation models, fine-tuning them, and comparing
 their results on PDE-style time series data.
