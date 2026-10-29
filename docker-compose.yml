@@ -7,6 +7,9 @@ services:
     ports:
       - "${JUPYTER_PORT:-8888}:8888"
     environment:
+      BOOTSTRAP_SPUS_ASSETS: ${BOOTSTRAP_SPUS_ASSETS:-1}
+      BOOTSTRAP_SPUS_MODELS: ${BOOTSTRAP_SPUS_MODELS:-1}
+      BOOTSTRAP_FNS_KF_DATA: ${BOOTSTRAP_FNS_KF_DATA:-1}
       JUPYTER_PORT: 8888
       JUPYTER_TOKEN: ${JUPYTER_TOKEN:-brev}
       JUPYTER_ROOT: /workspace/tut
@@ -31,6 +34,9 @@ services:
     image: spus-ft-brev:latest
     profiles: ["batch"]
     environment:
+      BOOTSTRAP_SPUS_ASSETS: ${BOOTSTRAP_SPUS_ASSETS:-1}
+      BOOTSTRAP_SPUS_MODELS: ${BOOTSTRAP_SPUS_MODELS:-1}
+      BOOTSTRAP_FNS_KF_DATA: ${BOOTSTRAP_FNS_KF_DATA:-1}
       SPUS_FT_AUX_ROOT: /workspace/tut-aux
       FMOD_DATA_ROOT: /workspace/tut-aux/spus-ft-data
       FMOD_MODELS_ROOT: /workspace/tut-aux/spus-models

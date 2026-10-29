@@ -170,6 +170,19 @@ runtime directories, points JupyterLab at `/workspace/tut`, and uses the
 mounted `/workspace/tut-aux` directory for datasets, model snapshots, cache,
 and run outputs.
 
+By default, container startup now also runs `docker/bootstrap-assets.sh`, which
+downloads missing SPUS model snapshots and missing raw FNS-KF dataset contents
+into the mounted aux directory before Jupyter starts. You can disable that with:
+
+```bash
+export BOOTSTRAP_SPUS_ASSETS=0
+docker compose up --build jupyter
+```
+
+The bootstrap step does not currently assemble `FNS-KF.nc` automatically. If
+that assembled NetCDF file is missing, startup logs a reminder after downloading
+the raw FNS-KF files.
+
 To execute the vertical-slice notebook non-interactively inside the container,
 prefer Compose:
 

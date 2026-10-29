@@ -82,6 +82,9 @@ services:
     ports:
       - "8888:8888"
     environment:
+      BOOTSTRAP_SPUS_ASSETS: 1
+      BOOTSTRAP_SPUS_MODELS: 1
+      BOOTSTRAP_FNS_KF_DATA: 1
       JUPYTER_PORT: 8888
       JUPYTER_TOKEN: brev
       JUPYTER_ROOT: /workspace/tut
@@ -100,6 +103,9 @@ services:
     image: <dockerhub-image>
     profiles: ["batch"]
     environment:
+      BOOTSTRAP_SPUS_ASSETS: 1
+      BOOTSTRAP_SPUS_MODELS: 1
+      BOOTSTRAP_FNS_KF_DATA: 1
       SPUS_FT_AUX_ROOT: /workspace/tut-aux
       FMOD_DATA_ROOT: /workspace/tut-aux/spus-ft-data
       FMOD_MODELS_ROOT: /workspace/tut-aux/spus-models
@@ -144,6 +150,18 @@ The container startup path uses these runtime locations:
 - `FMOD_MODELS_ROOT=/workspace/tut-aux/spus-models`
 - `FMOD_RUNS_ROOT=/workspace/tut-aux/spus-ft-runs`
 - `FMOD_CACHE_ROOT=/workspace/tut-aux/spus-ft-cache`
+
+It also runs `/workspace/tut/docker/bootstrap-assets.sh` by default, which:
+
+- downloads raw FNS-KF dataset contents if they are missing
+- downloads SPUS model snapshots if they are missing
+- reuses anything already present on the mounted `/workspace/tut-aux` volume
+
+If you want to disable that automatic bootstrap behavior, set:
+
+```bash
+BOOTSTRAP_SPUS_ASSETS=0
+```
 
 ## 6. Download the dataset and model snapshots inside the container
 

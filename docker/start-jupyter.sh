@@ -14,6 +14,8 @@ mkdir -p \
 
 cd /workspace/tut
 
+/workspace/tut/docker/bootstrap-assets.sh
+
 exec jupyter lab \
   --ip=0.0.0.0 \
   --port="${JUPYTER_PORT}" \

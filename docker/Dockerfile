@@ -36,10 +36,11 @@ COPY src ./src
 COPY configs ./configs
 COPY notebooks ./notebooks
 COPY tests ./tests
+COPY docker/bootstrap-assets.sh /workspace/tut/docker/bootstrap-assets.sh
 COPY docker/start-jupyter.sh /usr/local/bin/start-jupyter.sh
 COPY docker/run-vertical-slice.sh /usr/local/bin/run-vertical-slice.sh
 
-RUN chmod +x /usr/local/bin/start-jupyter.sh /usr/local/bin/run-vertical-slice.sh
+RUN chmod +x /workspace/tut/docker/bootstrap-assets.sh /usr/local/bin/start-jupyter.sh /usr/local/bin/run-vertical-slice.sh
 RUN uv sync --frozen --extra spus --extra notebook --extra dev
 RUN python -m ipykernel install --prefix /usr/local --name spus-ft --display-name "Python (spus-ft)"
 RUN mkdir -p /workspace/tut-aux/spus-ft-data /workspace/tut-aux/spus-models /workspace/tut-aux/spus-ft-runs /workspace/tut-aux/spus-ft-cache
