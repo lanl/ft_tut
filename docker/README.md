@@ -8,7 +8,8 @@ notebooks in JupyterLab.
 It assumes the tutorial container image has already been built and pushed to
 Docker Hub. For NVIDIA Brev `Single Container` launchables, publish the image
 built from `docker/Dockerfile.brev` so Brev can interact with a running
-`supervisord` instance during its startup flow.
+`supervisord` instance during its startup flow, even when Brev temporarily
+launches the container with its own bootstrap command.
 
 ## Prerequisites
 

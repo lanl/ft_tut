@@ -177,8 +177,9 @@ mounted `/workspace/tut-aux` directory for datasets, model snapshots, cache,
 and run outputs.
 
 For NVIDIA Brev `Single Container` launchables, prefer `docker/Dockerfile.brev`.
-That image keeps the same CUDA/Python environment but starts JupyterLab under
-`supervisord`, which better matches Brev's in-container bootstrap expectations.
+That image keeps the same CUDA/Python environment and starts `supervisord`
+from the container entrypoint, so Brev can still find `/var/run/supervisor.sock`
+even if it overrides the container command during bootstrap.
 
 By default, container startup now also runs `docker/bootstrap-assets.sh`, which
 downloads missing SPUS model snapshots and missing raw FNS-KF dataset contents
