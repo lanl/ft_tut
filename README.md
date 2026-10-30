@@ -112,10 +112,16 @@ The container image:
 - keeps data, model snapshots, cache, and run outputs under `/workspace/tut-aux`
 - exposes JupyterLab on port `8888`
 
-Build the image from the repo root:
+Build the local-development image from the repo root:
 
 ```bash
 docker build -f docker/Dockerfile -t spus-ft-brev .
+```
+
+Build the NVIDIA Brev launchable image from the repo root:
+
+```bash
+docker build -f docker/Dockerfile.brev -t spus-ft-brev:brev .
 ```
 
 Use Docker Compose from the repo root as the default launch path:
@@ -169,6 +175,10 @@ The container startup command is `docker/start-jupyter.sh`. It creates the
 runtime directories, points JupyterLab at `/workspace/tut`, and uses the
 mounted `/workspace/tut-aux` directory for datasets, model snapshots, cache,
 and run outputs.
+
+For NVIDIA Brev `Single Container` launchables, prefer `docker/Dockerfile.brev`.
+That image keeps the same CUDA/Python environment but starts JupyterLab under
+`supervisord`, which better matches Brev's in-container bootstrap expectations.
 
 By default, container startup now also runs `docker/bootstrap-assets.sh`, which
 downloads missing SPUS model snapshots and missing raw FNS-KF dataset contents

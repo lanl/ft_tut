@@ -6,7 +6,9 @@ materialize the required dataset and model snapshots, and open the tutorial
 notebooks in JupyterLab.
 
 It assumes the tutorial container image has already been built and pushed to
-Docker Hub.
+Docker Hub. For NVIDIA Brev `Single Container` launchables, publish the image
+built from `docker/Dockerfile.brev` so Brev can interact with a running
+`supervisord` instance during its startup flow.
 
 ## Prerequisites
 
@@ -22,7 +24,7 @@ Throughout this guide, replace:
 - `<instance-name>` with your Brev instance name
 - `<repo-url>` with the git URL for this repository
 - `<repo-dir>` with the local checkout directory name
-- `<dockerhub-image>` with the published tutorial image, for example `your-org/spus-ft-brev:latest`
+- `<dockerhub-image>` with the published tutorial image, for example `your-org/spus-ft-brev:brev`
 
 ## 1. Create and enter the Brev instance
 
