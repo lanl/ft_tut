@@ -6,7 +6,7 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 
 WORKSPACE_DIR="/home/ubuntu/workspace"
-REPO_URL="${REPO_URL:-https://github.com/<your-org>/<your-repo>.git}"
+REPO_URL="${REPO_URL:-https://github.com/lanl/ft_tut.git}"
 REPO_NAME="${REPO_NAME:-$(basename "${REPO_URL%.git}")}"
 REPO_DIR="${REPO_DIR:-$WORKSPACE_DIR/$REPO_NAME}"
 
