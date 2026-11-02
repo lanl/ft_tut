@@ -157,6 +157,7 @@ The container startup path uses these runtime locations:
 It also runs `/workspace/tut/docker/bootstrap-assets.sh` by default, which:
 
 - downloads raw FNS-KF dataset contents if they are missing
+- assembles `FNS-KF.nc` automatically after the raw FNS-KF files are available
 - downloads SPUS model snapshots if they are missing
 - reuses anything already present on the mounted `/workspace/tut-aux` volume
 
@@ -182,10 +183,18 @@ docker exec -it spus-ft-jupyter bash
 cd /workspace/tut
 ```
 
-Download the FNS-KF dataset into the mounted data volume:
+Download and assemble the FNS-KF dataset into the mounted data volume:
 
 ```bash
 python -m spus_ft download-fns-kf
+```
+
+If `FNS-KF.nc` is not already present, assemble it with:
+
+```bash
+uv run python /workspace/tut-aux/spus-ft-data/FNS-KF/assemble_data.py \
+  --input_dir /workspace/tut-aux/spus-ft-data/FNS-KF \
+  --output_file /workspace/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc
 ```
 
 Download the pretrained SPUS model snapshot and the fine-tuned FNS-KF model

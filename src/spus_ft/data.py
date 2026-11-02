@@ -129,7 +129,6 @@ def download_fns_kf_dataset(
         repo_id=repo_id,
         repo_type="dataset",
         local_dir=str(target_dir),
-        local_dir_use_symlinks=False,
         allow_patterns=used_patterns,
     )
 
@@ -164,7 +163,6 @@ def download_spus_model(
         repo_id=repo_id,
         repo_type="model",
         local_dir=str(target_dir),
-        local_dir_use_symlinks=False,
         allow_patterns=used_patterns,
     )
 

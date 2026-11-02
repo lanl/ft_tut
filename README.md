@@ -182,17 +182,17 @@ from the container entrypoint, so Brev can still find `/var/run/supervisor.sock`
 even if it overrides the container command during bootstrap.
 
 By default, container startup now also runs `docker/bootstrap-assets.sh`, which
-downloads missing SPUS model snapshots and missing raw FNS-KF dataset contents
-into the mounted aux directory before Jupyter starts. You can disable that with:
+downloads missing SPUS model snapshots, downloads missing raw FNS-KF dataset
+contents, and assembles `FNS-KF.nc` into the mounted aux directory before
+Jupyter starts. You can disable that with:
 
 ```bash
 export BOOTSTRAP_SPUS_ASSETS=0
 docker compose up --build jupyter
 ```
 
-The bootstrap step does not currently assemble `FNS-KF.nc` automatically. If
-that assembled NetCDF file is missing, startup logs a reminder after downloading
-the raw FNS-KF files.
+If raw FNS-KF files are present but `FNS-KF.nc` is missing, the bootstrap step
+now runs `assemble_data.py` automatically.
 
 To execute the vertical-slice notebook non-interactively inside the container,
 prefer Compose:
