@@ -1,4 +1,4 @@
-"""SPUS fine-tuning tutorial scaffold package."""
+"""SPUS fine-tuning tutorial package."""
 
 from spus_ft.metrics import compute_average_mse
 from spus_ft.paths import TutorialPaths

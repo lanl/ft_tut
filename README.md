@@ -1,33 +1,35 @@
-# FMOD Tutorial Scaffold
+# FMOD Tutorial
 
 **Foundation Model Fine-Tuning Tutorial&#x20;**&#x68;as been acknowledged by NNSA for open-source release. O# **(O5229)**
 
-This repository contains the Phase 0 and Phase 1 scaffold for a scientist-facing
-tutorial on running pretrained foundation models, fine-tuning them, and comparing
-their results on PDE-style time series data.
+This repository contains a scientist-facing tutorial on running pretrained
+foundation models, fine-tuning them, and comparing their results on PDE-style
+time series data.
 
-The current scaffold focuses on a synthetic end-to-end workflow so the software
-shape is tested before wiring in the real SPUS model and FNS-KF dataset.
+The repository includes the SPUS/FNS-KF tutorial path, including
+pretrained-model inference, fine-tuning, rollout evaluation, plotting helpers,
+and Brev VM startup scripts.
 
 ## Current scope
 
 - Python package under `src/spus_ft/`
 - External path management for data, cache, and run outputs
-- Synthetic dataset generator for autoregressive forecasting
-- Minimal baseline model wrapper
-- Autoregressive inference loop
-- MSE metrics and result serialization
-- Starter Jupyter notebook that calls Python package functions
-- Starter Dockerfile for notebook-based development
-- Pytest suite for the scaffold
+- SPUS v2 pretrained and fine-tuned FNS-KF model support
+- Autoregressive inference, evaluation, and plotting helpers
+- FNS-KF download and `FNS-KF.nc` assembly helpers
+- Jupyter notebooks for the vertical-slice tutorial flow
+- Brev VM setup script under `scripts/`
+- Dockerfiles and Compose files for Brev single-container experiments
+- Pytest/unit-test coverage for the tutorial helpers
 
 ## Repository layout
 
 - `src/spus_ft/` — tutorial package code
-- `tests/` — unit tests for Phase 0 and Phase 1
+- `tests/` — unit tests for the tutorial helpers
 - `notebooks/` — scientist-facing notebook entrypoint
 - `configs/` — small JSON configuration files
-- `docker/` — container scaffold
+- `docker/` — container support files
+- `scripts/` — Brev VM startup scripts
 
 ## External directories
 
@@ -48,7 +50,84 @@ These can be overridden with environment variables:
 - `FMOD_RUNS_ROOT`
 - `FMOD_CACHE_ROOT`
 
-## Quickstart
+## Run on Brev VM
+
+The currently tested Brev path is **VM Mode** with the startup script in
+`scripts/brev_vm_setup.sh` and **Jupyter on the host**.
+
+Published Brev Launchable:
+
+- `https://brev.nvidia.com/launchable/deploy?launchableID=env-3LbYYrtSW9tdva0kylRcA8y9moW`
+
+How to launch it:
+
+- open the Launchable link in your browser
+- sign in to NVIDIA Brev if prompted
+- select your Brev organization or workspace if you have more than one
+- review the Launchable configuration
+- choose an available GPU instance and review its estimated hourly cost
+- click the launch / deploy button to provision your VM
+- wait for provisioning and for the setup script to complete; this can take up
+  to an hour
+- once the instance is ready, use the Brev notebook entrypoint and SSH steps
+  below to connect
+
+This repository has been tested on a Brev instance using that VM startup
+script. The script:
+
+- clones the tutorial repo onto the VM
+- creates the locked `uv` environment
+- registers the `Python (spus-ft)` Jupyter kernel
+- downloads SPUS model snapshots
+- downloads the raw FNS-KF files and assembles `FNS-KF.nc`
+
+The primary tutorial workflow today assumes you launch a Brev VM from a Mac and
+use the Brev CLI locally.
+
+On your Mac:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | sed 's/release_tag="$(get_latest_release_tag)"/release_tag="v0.6.330"/' | bash
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# Log in to Brev; this opens a browser window.
+brev login
+
+# Start the Launchable from the Brev Console and note the instance name.
+# Wait for the VM to build and for the tutorial startup script to finish.
+# The startup script checks out the tutorial code, downloads the data and
+# models, and assembles the FNS-KF NetCDF dataset.
+
+# Show running Brev instances.
+brev ls
+
+# Refresh local SSH config for Brev-managed instances.
+brev refresh
+
+# Confirm your local port 8888 is free before tunneling.
+lsof -nP -iTCP:8888 -sTCP:LISTEN
+
+# Forward local port 8888 to the Brev VM.
+ssh -F ~/.brev/ssh_config -N -L 8888:localhost:8888 ft-tut-vm-?
+```
+
+From the Brev web page:
+
+- open `Compute -> Launchable -> Start notebook`
+- wait if the notebook server is still coming up
+
+If you want a shell on the Launchable in a second terminal on your Mac:
+
+```bash
+ssh -F ~/.brev/ssh_config ft-tut-vm-?
+```
+
+Inside the hosted notebook UI, select the `Python (spus-ft)` kernel and open:
+
+- `notebooks/vertical_slice.ipynb`
+
+## Run on your own machine
 
 Create a virtual environment, install dev dependencies, and run tests:
 
@@ -56,12 +135,6 @@ Create a virtual environment, install dev dependencies, and run tests:
 export PATH="$HOME/.local/bin:$PATH"
 uv sync --extra dev
 PYTHONPATH=src uv run python -m unittest discover -s tests -v
-```
-
-Run the synthetic notebook workflow from Python:
-
-```bash
-PYTHONPATH=src python -m spus_ft
 ```
 
 For the real SPUS model path, install the model runtime dependencies first:
@@ -76,8 +149,8 @@ To add Jupyter notebook capability to the same `uv` environment:
 uv sync --extra notebook
 ```
 
-For the full tutorial environment on a backend node, including the SPUS runtime
-stack and notebook support:
+For the full tutorial environment on your workstation, including the SPUS
+runtime stack and notebook support:
 
 ```bash
 uv sync --extra spus --extra notebook --extra dev
@@ -98,171 +171,50 @@ PYTHONPATH=src uv run jupyter lab
 This `spus` extra also includes `matplotlib`, so the same environment can run
 the notebook plotting helpers.
 
-## Container / NVIDIA Brev
+The notebook-first local workflow is:
 
-The repository now includes a Brev-friendly container scaffold under `docker/`
-for running the tutorial notebooks and Python package in an isolated JupyterLab
-environment.
+- install the locked `uv` environment with the `spus` and `notebook` extras
+- download the FNS-KF dataset and SPUS model snapshots into `tut-aux`
+- assemble `FNS-KF.nc` if it is not already present
+- launch JupyterLab and open `notebooks/vertical_slice.ipynb`
 
-The container image:
-
-- installs the locked project environment with `uv sync --frozen`
-- includes the `spus`, `notebook`, and `dev` extras
-- registers a `Python (spus-ft)` Jupyter kernel
-- keeps data, model snapshots, cache, and run outputs under `/workspace/tut-aux`
-- exposes JupyterLab on port `8888`
-
-Build the local-development image from the repo root:
-
-```bash
-docker build -f docker/Dockerfile -t spus-ft-brev .
-```
-
-Build the NVIDIA Brev launchable image from the repo root:
-
-```bash
-docker build -f docker/Dockerfile.brev -t spus-ft-brev:brev .
-```
-
-Use Docker Compose from the repo root as the default launch path:
-
-```bash
-docker compose up --build jupyter
-```
-
-The included `docker-compose.yml` provides two services:
-
-- `jupyter` — interactive JupyterLab on port `8888`
-- `vertical-slice` — batch execution of `notebooks/vertical_slice.ipynb`
-
-Examples:
-
-```bash
-docker compose up --build jupyter
-docker compose run --rm vertical-slice
-```
-
-By default, Compose mounts:
-
-- the repo at `/workspace/tut`
-- `../tut-aux` at `/workspace/tut-aux`
-
-You can override the aux mount and token with environment variables:
-
-```bash
-export TUT_AUX_DIR=/absolute/path/to/tut-aux
-export JUPYTER_TOKEN=brev
-docker compose up --build jupyter
-```
-
-As a fallback, start JupyterLab locally or on a Brev instance with `docker run`:
-
-```bash
-docker run --rm -it \
-  -p 8888:8888 \
-  -v "$PWD":/workspace/tut \
-  -v "$PWD/../tut-aux":/workspace/tut-aux \
-  -e JUPYTER_TOKEN=brev \
-  spus-ft-brev
-```
-
-Then open the JupyterLab URL printed in the logs and launch:
-
-- `notebooks/vertical_slice.ipynb`
-- `notebooks/01_phase0_phase1_scaffold.ipynb`
-
-The container startup command is `docker/start-jupyter.sh`. It creates the
-runtime directories, points JupyterLab at `/workspace/tut`, and uses the
-mounted `/workspace/tut-aux` directory for datasets, model snapshots, cache,
-and run outputs.
-
-For NVIDIA Brev `Single Container` launchables, prefer `docker/Dockerfile.brev`.
-That image keeps the same CUDA/Python environment and starts `supervisord`
-from the container entrypoint, so Brev can still find `/var/run/supervisor.sock`
-even if it overrides the container command during bootstrap.
-
-By default, container startup now also runs `docker/bootstrap-assets.sh`, which
-downloads missing SPUS model snapshots, downloads missing raw FNS-KF dataset
-contents, and assembles `FNS-KF.nc` into the mounted aux directory before
-Jupyter starts. You can disable that with:
-
-```bash
-export BOOTSTRAP_SPUS_ASSETS=0
-docker compose up --build jupyter
-```
-
-If raw FNS-KF files are present but `FNS-KF.nc` is missing, the bootstrap step
-now runs `assemble_data.py` automatically.
-
-To execute the vertical-slice notebook non-interactively inside the container,
-prefer Compose:
-
-```bash
-docker compose run --rm vertical-slice
-```
-
-As a fallback, use the helper script with `docker run`:
-
-```bash
-docker run --rm -it \
-  -v "$PWD":/workspace/tut \
-  -v "$PWD/../tut-aux":/workspace/tut-aux \
-  spus-ft-brev \
-  run-vertical-slice.sh
-```
-
-That executes `notebooks/vertical_slice.ipynb` with `jupyter nbconvert` and
-writes the executed notebook to:
-
-```bash
-/workspace/tut-aux/spus-ft-runs/vertical_slice-executed.ipynb
-```
-
-If you are using NVIDIA Brev with a GPU-backed instance, you can pass your
-usual Docker GPU runtime flags when launching the container, for example
-`--gpus all`, and keep the same mounted repo and aux directories. The Compose
-file already defaults `DOCKER_GPUS` to `all`.
-
-To download the FNS-KF dataset into the external data directory:
+Useful helper commands:
 
 ```bash
 PYTHONPATH=src uv run python -m spus_ft download-fns-kf
+PYTHONPATH=src uv run python -m spus_ft download-spus-models
+PYTHONPATH=src uv run jupyter lab
 ```
 
-This downloads the dataset repo contents needed for the tutorial into:
+The dataset is stored under:
 
 ```bash
 /usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF
 ```
 
-including:
-
-- `assemble_data.py`
-- `README.md`
-- `solution_*.nc`
-
-To download the pretrained SPUS model repo plus the three fine-tuned FNS-KF
-model repos into the external models directory:
-
-```bash
-PYTHONPATH=src uv run python -m spus_ft download-spus-models
-```
-
-This downloads model snapshots into:
+The model snapshots are stored under:
 
 ```bash
 /usr/projects/artimis/cahrens/tut-aux/spus-models
 ```
 
-including subdirectories for:
+The tutorial uses a single assembled NetCDF file, `FNS-KF.nc`, and constructs
+train/val/test splits in memory by trajectory index. It does not expect
+separate train/val/test NetCDF files on disk.
 
-- `spus-pde-unet-36m-v2`
-- `spus-pde-unet-36m-v2-fns-kf`
-- `spus-pde-unet-36m-v2-fns-kf-32`
-- `spus-pde-unet-36m-v2-fns-kf-256`
+For inference on FNS-KF data:
 
-The tutorial expects those Hugging Face model snapshots to live in the external
-models directory.
+- pretrained v2 baseline inference uses `spus-pde-unet-36m-v2` with 5-channel
+  padded input
+- Hugging Face fine-tuned FNS-KF snapshots use `SPUSFNSKF` with raw 2-channel
+  input
+
+Outputs such as checkpoints, rollout tensors, plots, summaries, and evaluation
+artifacts are written under:
+
+```bash
+/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs
+```
 
 If you want the same four Hugging Face model repos materialized as full git
 clones for reproducibility, use:
@@ -271,228 +223,23 @@ clones for reproducibility, use:
 PYTHONPATH=src uv run python -m spus_ft clone-spus-models
 ```
 
-This clones the same four repos under `spus-models`, which can be useful when
-you want explicit git metadata and commit hashes in the mounted model storage.
+For the full end-to-end tutorial workflow, use `notebooks/vertical_slice.ipynb`.
 
-To fine-tune on an assembled NetCDF file from a notebook or Python shell:
+## Run on Brev Single Container (Under Development)
 
-Note: `FNS-KF.nc` contains 2 channels per frame. For compatibility with the
-pretrained SPUS 36M model, the tutorial pads each frame to 5 channels by
-keeping the first 2 data channels unchanged and appending 3 channels filled
-with `1.0`. This follows the handling described for downstream adaptation in
-the paper *Generalizable PDE Learning with Pretrained Convolutional U-Net
-Architecture* by Abu Bucker Siddik, Diane Oyen, Alexander Most, Michal Kucer,
-Nathan A. DeBardeleben, Earl Lawrence, and Ayan Biswas.
+The repository includes Dockerfiles, Compose configuration, and Brev
+single-container experiments under `docker/`, but this path is still
+experimental on Brev. The single-container notebook connection has not yet been
+reliable end-to-end, so it is not the recommended tutorial workflow today.
 
-Also note: the tutorial uses a single assembled NetCDF file, `FNS-KF.nc`, and
-constructs train/val/test splits in memory by trajectory index. It does not
-expect separate train/val/test NetCDF files on disk.
+For Docker build/run details, Compose usage, and the current Brev
+single-container notes, see `docker/README.md`.
 
-By default, the tutorial baseline pretrained model is now the Hugging Face
-snapshot `siddik-lanl/spus-pde-unet-36m-v2`, stored externally under
-`spus-models/spus-pde-unet-36m-v2`. The companion fine-tuned Hugging Face model
-snapshots used for comparisons are:
+## Status notes
 
-- `spus-pde-unet-36m-v2-fns-kf`
-- `spus-pde-unet-36m-v2-fns-kf-32`
-- `spus-pde-unet-36m-v2-fns-kf-256`
+Current state of the tutorial repo:
 
-```python
-from pathlib import Path
+- Brev VM Mode with `scripts/brev_vm_setup.sh` is the main tested deployment
+- Brev single-container Docker support remains experimental
+- Brev Single Container remains experimental and is not yet the recommended path
 
-from spus_ft.pipeline import fine_tune, infer_rollout, evaluate_rollout
-
-dataset_path = Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc")
-
-finetune_outcome = fine_tune(
-    dataset_path=dataset_path,
-    pretrained_source="/usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2",
-    num_train_trajectories=16,
-    epochs=10,
-)
-
-rollout_outcome = infer_rollout(
-    dataset_path=dataset_path,
-    pretrained_source="/usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2",
-    num_train_trajectories=16,
-    checkpoint_path=finetune_outcome["checkpoint_path"],
-)
-
-evaluation_outcome = evaluate_rollout(
-    rollout_outcome=rollout_outcome,
-)
-```
-
-Inference now supports two distinct fine-tuned model paths for FNS-KF data:
-
-- Tutorial checkpoint inference: loads the base `Unet2D` model and applies a
-  saved `best_checkpoint.pt`. Because the base SPUS model expects 5 channels,
-  the tutorial pads the 2-channel FNS-KF frames with three extra channels set
-  to `1.0`.
-- Hugging Face fine-tuned snapshot inference: loads the `SPUSFNSKF` class from
-  `spus-pde-unet-36m-v2-fns-kf*` and uses the raw 2-channel FNS-KF frames with
-  no padding.
-
-To infer an autoregressive rollout for exactly one trajectory from the test
-split with a tutorial-produced checkpoint:
-
-```python
-from pathlib import Path
-
-from spus_ft import infer_rollout
-
-dataset_path = Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc")
-
-rollout_outcome = infer_rollout(
-    dataset_path=dataset_path,
-    split_name="test",
-    test_trajectory_index=0,
-    pretrained_source="/usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2",
-    checkpoint_path="/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/your_run/best_checkpoint.pt",
-)
-```
-
-To infer the same trajectory using one of the downloaded Hugging Face
-fine-tuned FNS-KF snapshots instead:
-
-```python
-from pathlib import Path
-
-from spus_ft import infer_rollout
-
-dataset_path = Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc")
-
-rollout_outcome = infer_rollout(
-    dataset_path=dataset_path,
-    split_name="test",
-    test_trajectory_index=0,
-    pretrained_source="/usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2-fns-kf-256",
-)
-```
-
-These calls select the first trajectory in the test split, predict the full
-rollout autoregressively, and write the outputs plus MSE summary into
-`spus-ft-runs`.
-
-For pretrained-only baseline inference, point `pretrained_source` at the base
-snapshot `spus-pde-unet-36m-v2`. That path uses `Unet2D` and the tutorial’s
-5-channel padding behavior for FNS-KF inputs.
-
-The same workflow is also available from the CLI:
-
-```bash
-PYTHONPATH=src uv run python -m spus_ft fine-tune \
-  --dataset-path /usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc \
-  --pretrained-source /usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2 \
-  --num-train-trajectories 16 \
-  --epochs 10
-
-PYTHONPATH=src uv run python -m spus_ft infer-rollout \
-  --dataset-path /usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc \
-  --pretrained-source /usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2 \
-  --checkpoint-path /usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/your_run/best_checkpoint.pt \
-  --split-name test \
-  --split-trajectory-index 0
-
-PYTHONPATH=src uv run python -m spus_ft infer-rollout \
-  --dataset-path /usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc \
-  --pretrained-source /usr/projects/artimis/cahrens/tut-aux/spus-models/spus-pde-unet-36m-v2-fns-kf-256 \
-  --split-name test \
-  --split-trajectory-index 0
-
-PYTHONPATH=src uv run python -m spus_ft evaluate-rollout \
-  --rollout-run-dir /usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/your_rollout_run
-```
-
-To make a Fig. 3-style comparison plot for predicted and true frames at rollout
-steps 1, 8, and 16:
-
-```python
-from pathlib import Path
-
-from spus_ft import plot_rollout_frames
-
-run_dir = Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/your_infer_run")
-
-plot_rollout_frames(
-    run_dir=run_dir,
-    trajectory_index=0,
-    timesteps=(1, 8, 16),
-    channel_index=0,
-    save_path=run_dir / "fig3_like_rollout.png",
-)
-```
-
-To evaluate rollout quality over multiple trajectories from a split:
-
-```python
-from pathlib import Path
-
-from spus_ft import evaluate_rollout
-
-dataset_path = Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-data/FNS-KF/FNS-KF.nc")
-
-evaluation_outcome = evaluate_rollout(
-    rollout_run_dir="/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/your_infer_run",
-)
-```
-
-By default, this evaluates **all trajectories in the selected split** and writes
-`evaluation.json` containing overall average MSE, per-timestep MSE, and
-per-trajectory MSE. It also saves preview
-tensors for the first few evaluated trajectories as:
-
-- `preview_predictions.pt`
-- `preview_targets.pt`
-
-By default the first 5 evaluated trajectories are saved in those preview files.
-
-To make a Fig. 4-style comparison of average MSE for each rollout step across
-multiple fine-tuned models trained on different amounts of FNS-KF data:
-
-```python
-from pathlib import Path
-
-from spus_ft import plot_multiple_rollout_mse_curves
-
-evaluation_paths = [
-    Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/eval_ft_1/evaluation.json"),
-    Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/eval_ft_8/evaluation.json"),
-    Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/eval_ft_32/evaluation.json"),
-]
-
-plot_multiple_rollout_mse_curves(
-    evaluation_paths,
-    labels=[
-        "pretrained v2 baseline",
-        "HF fine-tuned v2",
-        "HF fine-tuned v2 (32)",
-        "HF fine-tuned v2 (256)",
-    ],
-    save_path=Path("/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs/fns_kf_mse_compare.png"),
-)
-```
-
-If you do not pass explicit labels, the plotting helper derives them from the
-saved evaluation metadata, including whether the run is pretrained or
-fine-tuned and the recorded number of training trajectories.
-
-Fine-tuned checkpoints, rollout tensors, summaries, and metadata are written under:
-
-- `/usr/projects/artimis/cahrens/tut-aux/spus-ft-runs`
-
-## Next phases
-
-The next build stages will add:
-
-- FNS-KF dataset download and loading
-- SPUS pretrained model/config loading
-- SLURM script generation
-- Fine-tuning for 10 epochs
-- Saved-model inference and pretrained vs. finetuned MSE comparison
-
-## Git note
-
-This workspace currently contains scaffold files only. If you want this directory
-connected to `https://lisdi-git.lanl.gov/artimis/fmod`, the next step is to
-initialize or attach a writable git repository and add that remote.

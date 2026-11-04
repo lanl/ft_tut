@@ -236,7 +236,6 @@ brev
 Inside JupyterLab, open:
 
 - `notebooks/vertical_slice.ipynb`
-- `notebooks/01_phase0_phase1_scaffold.ipynb`
 
 The notebook code will find its data and model artifacts under the mounted
 `/workspace/tut-aux` tree.
