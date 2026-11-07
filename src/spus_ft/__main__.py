@@ -113,6 +113,7 @@ def main() -> None:
             model_repo_path=args.model_repo_path,
             training_repo_path=args.training_repo_path,
             device=args.device,
+            echo_logs=True,
         )
         print(f"Saved fine-tuning outputs to {outcome['run_dir']}")
         print(f"Best checkpoint: {outcome['checkpoint_path']}")
@@ -132,6 +133,7 @@ def main() -> None:
             max_test_trajectories=args.num_trajectories,
             test_trajectory_index=args.split_trajectory_index,
             split_name=args.split_name,
+            echo_logs=True,
         )
         print(f"Saved rollout outputs to {outcome['run_dir']}")
         print(f"Rollout tensor: {outcome['predictions_path']}")
@@ -153,6 +155,7 @@ def main() -> None:
             split_name=args.split_name,
             preview_trajectory_count=args.preview_trajectory_count,
             rollout_run_dir=args.rollout_run_dir,
+            echo_logs=True,
         )
         print(f"Saved evaluation outputs to {outcome['run_dir']}")
         print(f"Evaluation JSON: {outcome['evaluation_path']}")

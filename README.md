@@ -55,9 +55,9 @@ These can be overridden with environment variables:
 The currently tested Brev path is **VM Mode** with the startup script in
 `scripts/brev_vm_setup.sh` and **Jupyter on the host**.
 
-Published Brev Launchable:
+Published Brev Launchable Link:
 
-- `https://brev.nvidia.com/launchable/deploy?launchableID=env-3LbYYrtSW9tdva0kylRcA8y9moW`
+- `https://jupyter-qlbkbtaq1.gobrev.dev`​
 
 How to launch it:
 
@@ -67,8 +67,7 @@ How to launch it:
 - review the Launchable configuration
 - choose an available GPU instance and review its estimated hourly cost
 - click the launch / deploy button to provision your VM
-- wait for provisioning and for the setup script to complete; this can take up
-  to an hour
+- wait for provisioning and for the setup script to complete; this can take around 15-20 minutes
 - once the instance is ready, use the Brev notebook entrypoint and SSH steps
   below to connect
 
@@ -109,7 +108,7 @@ brev refresh
 lsof -nP -iTCP:8888 -sTCP:LISTEN
 
 # Forward local port 8888 to the Brev VM.
-ssh -F ~/.brev/ssh_config -N -L 8888:localhost:8888 ft-tut-vm-?
+ssh -F ~/.brev/ssh_config -N -L 8888:localhost:8888 <launchable>
 ```
 
 From the Brev web page:
@@ -120,14 +119,16 @@ From the Brev web page:
 If you want a shell on the Launchable in a second terminal on your Mac:
 
 ```bash
-ssh -F ~/.brev/ssh_config ft-tut-vm-?
+ssh -F ~/.brev/ssh_config <launchable>
 ```
 
-Inside the hosted notebook UI, select the `Python (spus-ft)` kernel and open:
+Inside the jupyter notebook UI, open:
 
 - `notebooks/vertical_slice.ipynb`
 
-## Run on your own machine
+Select the `Python (spus-ft)` kernel.
+
+## Run on your own machine (not recommended for this tutorial)
 
 Create a virtual environment, install dev dependencies, and run tests:
 

@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+from types import ModuleType
 import tempfile
 import textwrap
 import unittest
@@ -9,6 +10,7 @@ from spus_ft.paths import TutorialPaths
 from spus_ft.pipeline import (
     append_run_log,
     evaluate_rollout,
+    fine_tune,
     resolve_fns_kf_nc_path,
     resolve_spus_inference_strategy,
     resolve_spus_model_definition_repo,
@@ -36,11 +38,81 @@ class FakeNoGrad:
 
 
 class FakeTorch:
+    class _Cuda:
+        @staticmethod
+        def is_available():
+            return False
+
+        @staticmethod
+        def manual_seed(seed):
+            return None
+
+        @staticmethod
+        def manual_seed_all(seed):
+            return None
+
+    class _Backends:
+        class cudnn:
+            deterministic = False
+            benchmark = True
+
+    class optim:
+        class AdamW:
+            def __init__(self, params, lr):
+                self.params = list(params)
+                self.lr = lr
+
+            def state_dict(self):
+                return {"lr": self.lr}
+
+    cuda = _Cuda()
+    backends = _Backends()
+
     def randn(self, *shape):
         return FakeTensor(shape, label="randn")
 
     def no_grad(self):
         return FakeNoGrad()
+
+    def manual_seed(self, seed):
+        return None
+
+    def device(self, name):
+        return name
+
+
+class FakeDataLoader:
+    def __init__(self, dataset, batch_size=1, shuffle=False, num_workers=0):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_workers = num_workers
+
+    def __len__(self):
+        if len(self.dataset) == 0:
+            return 0
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+
+    def __iter__(self):
+        return iter(())
+
+
+class FakeModel:
+    def to(self, device):
+        self.device = device
+        return self
+
+    def parameters(self):
+        return [object()]
+
+    def state_dict(self):
+        return {"weights": 1}
+
+    def train(self):
+        return self
+
+    def eval(self):
+        return self
 
 
 class FakeHubMixin:
@@ -61,6 +133,14 @@ class TestSpusPipeline(unittest.TestCase):
             self.assertEqual(log_path, run_dir / "training.log")
             self.assertTrue(log_path.is_file())
             self.assertIn("Starting epoch 1/10", log_path.read_text(encoding="utf-8"))
+
+    def test_append_run_log_does_not_echo_by_default(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="spus-ft-log-") as tmp_dir, patch('builtins.print') as mock_print:
+            run_dir = Path(tmp_dir)
+
+            append_run_log(run_dir, "Quiet log message")
+
+            mock_print.assert_not_called()
 
     def test_fns_kf_paper_split_helper_matches_reference_counts(self) -> None:
         try:
@@ -350,3 +430,83 @@ class TestSpusPipeline(unittest.TestCase):
 
         self.assertEqual(outcome['run_dir'], Path('/tmp/existing-rollout').resolve())
         mock_load.assert_called_once()
+
+    def test_fine_tune_records_data_usage_and_elapsed_time_metrics(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="spus-ft-fine-tune-") as tmp_dir:
+            repo_root = Path(tmp_dir)
+            paths = TutorialPaths.discover(repo_root)
+            fake_train_set = [0] * 12
+            fake_val_set = [0] * 4
+            fake_test_set = [0] * 6
+            saved = {}
+
+            def fake_save_checkpoint(run_dir, checkpoint, metadata, filename='best_checkpoint.pt', torch_module=None):
+                saved['metadata'] = metadata
+                return Path(run_dir) / filename
+
+            fake_torch = ModuleType('torch')
+            fake_torch_impl = FakeTorch()
+            fake_torch.manual_seed = fake_torch_impl.manual_seed
+            fake_torch.device = fake_torch_impl.device
+            fake_torch.cuda = fake_torch_impl.cuda
+            fake_torch.backends = fake_torch_impl.backends
+            fake_torch.optim = fake_torch_impl.optim
+
+            fake_torch_nn = ModuleType('torch.nn')
+            fake_torch_functional = ModuleType('torch.nn.functional')
+            fake_torch_nn.functional = fake_torch_functional
+
+            fake_torch_utils = ModuleType('torch.utils')
+            fake_torch_utils_data = ModuleType('torch.utils.data')
+            fake_torch_utils_data.DataLoader = FakeDataLoader
+            fake_torch_utils.data = fake_torch_utils_data
+
+            fake_dataloader = SimpleNamespace(
+                infer_variable_name=lambda data_path, variable_name: 'data',
+                get_train_val_test_split_from_file=lambda *args, **kwargs: (fake_train_set, fake_val_set, fake_test_set),
+                get_train_val_test_trajectory_indices_from_file=lambda *args, **kwargs: (
+                    list(range(3)), [3], [4, 5], {'shape': [6, 21, 2, 128, 128]}
+                ),
+                close_all_datasets=lambda dataset: None,
+            )
+
+            with patch('spus_ft.pipeline.require_spus_runtime_dependencies', return_value={'ok': True}), patch(
+                'spus_ft.pipeline.resolve_fns_kf_nc_path', return_value=Path('/tmp/FNS-KF.nc')
+            ), patch('spus_ft.pipeline._timestamp_label', return_value='20261104-000000'), patch(
+                'spus_ft.pipeline.load_spus_36m_training_model',
+                return_value={
+                    'model': FakeModel(),
+                    'pretrained_source': '/tmp/pretrained',
+                    'training_repo_path': Path('/tmp/model-repo'),
+                },
+            ), patch('spus_ft.pipeline.save_checkpoint', side_effect=fake_save_checkpoint), patch(
+                'time.perf_counter', side_effect=[100.0, 112.5]
+            ), patch.dict(
+                'sys.modules',
+                {
+                    'torch': fake_torch,
+                    'torch.nn': fake_torch_nn,
+                    'torch.nn.functional': fake_torch_functional,
+                    'torch.utils': fake_torch_utils,
+                    'torch.utils.data': fake_torch_utils_data,
+                    'spus_ft.dataloader': fake_dataloader,
+                },
+            ):
+                outcome = fine_tune(
+                    paths=paths,
+                    dataset_path=Path('/tmp/FNS-KF.nc'),
+                    epochs=0,
+                    batch_size=5,
+                )
+
+            metrics = outcome['fine_tune_metrics']
+            self.assertEqual(metrics['num_train_trajectories'], 3)
+            self.assertEqual(metrics['num_train_samples'], 12)
+            self.assertEqual(metrics['num_val_samples'], 4)
+            self.assertEqual(metrics['num_test_samples'], 6)
+            self.assertEqual(metrics['num_train_batches_per_epoch'], 3)
+            self.assertEqual(metrics['num_val_batches_per_epoch'], 1)
+            self.assertEqual(metrics['fine_tune_duration_seconds'], 12.5)
+            self.assertAlmostEqual(metrics['fine_tune_duration_minutes'], 12.5 / 60.0)
+            self.assertEqual(outcome['metadata']['fine_tune_metrics'], metrics)
+            self.assertEqual(saved['metadata']['fine_tune_metrics'], metrics)

@@ -240,7 +240,13 @@ def plot_rollout_frames_separate_scales(
     target_vmin = min(target_values)
     target_vmax = max(target_values)
 
-    figure, axes = pyplot.subplots(2, len(resolved_steps), figsize=(4 * len(resolved_steps), 7.5), squeeze=False)
+    figure, axes = pyplot.subplots(
+        2,
+        len(resolved_steps),
+        figsize=(4 * len(resolved_steps), 7.8),
+        squeeze=False,
+        gridspec_kw={'hspace': 0.28},
+    )
     prediction_mappable = None
     target_mappable = None
     for column_index, (step_label, step_index) in enumerate(resolved_steps):
@@ -268,7 +274,7 @@ def plot_rollout_frames_separate_scales(
     figure.suptitle(title or 'SPUS rollout frames (separate color scales)', fontsize=14)
     subtitle = figure.text(
         0.5,
-        0.16,
+        0.15,
         'Top row uses prediction range. Bottom row uses ground-truth range.',
         ha='center',
     )
@@ -280,7 +286,7 @@ def plot_rollout_frames_separate_scales(
         ax=axes[0].tolist(),
         orientation='horizontal',
         fraction=0.05,
-        pad=0.16,
+        pad=0.20,
     )
     prediction_colorbar.set_label(f'{channel_label} predicted value — {label}')
     target_colorbar = figure.colorbar(
@@ -288,10 +294,10 @@ def plot_rollout_frames_separate_scales(
         ax=axes[1].tolist(),
         orientation='horizontal',
         fraction=0.05,
-        pad=0.22,
+        pad=0.20,
     )
     target_colorbar.set_label(f'{channel_label} true value — {label}')
-    figure.tight_layout(rect=(0.0, 0.20, 1.0, 0.93))
+    figure.tight_layout(rect=(0.0, 0.19, 1.0, 0.93), h_pad=2.0)
 
     if save_path is not None:
         output_path = Path(save_path)
@@ -533,6 +539,10 @@ def plot_rollout_mse_curve(
     ax: Optional[Any] = None,
     title: str = 'Average MSE by rollout step',
     linewidth: float = 2.0,
+    marker: str = 'o',
+    linestyle: str = '-',
+    markevery: Optional[Any] = None,
+    alpha: float = 1.0,
     save_path: Optional[Path | str] = None,
 ) -> dict:
     pyplot = _import_pyplot()
@@ -548,9 +558,19 @@ def plot_rollout_mse_curve(
     resolved_label = label or build_evaluation_label(metadata)
     steps = list(range(1, len(timestep_mse) + 1))
 
-    ax.plot(steps, timestep_mse, marker='o', linewidth=linewidth, label=resolved_label)
+    ax.plot(
+        steps,
+        timestep_mse,
+        marker=marker,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        markevery=markevery,
+        alpha=alpha,
+        label=resolved_label,
+    )
     ax.set_xlabel('Rollout step')
-    ax.set_ylabel('Average MSE')
+    ax.set_ylabel('Average MSE (log scale)')
+    ax.set_yscale('log')
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
     if resolved_label:
@@ -580,17 +600,30 @@ def plot_multiple_rollout_mse_curves(
 
     pyplot = _import_pyplot()
     figure, ax = pyplot.subplots(figsize=(8.5, 5.0))
+    markers = ['o', 's', '^', 'D', 'v', 'P', 'X']
+    linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
     plotted_evaluations = []
     for index, source in enumerate(evaluation_sources):
         evaluation = _load_evaluation_payload(source)
         resolved_label = labels[index] if labels is not None else None
+        marker = markers[index % len(markers)]
+        linestyle = linestyles[index % len(linestyles)]
+        timestep_count = len(evaluation['timestep_mse'])
+        markevery = None
+        if timestep_count > 1:
+            marker_offset = index % min(timestep_count, 4)
+            markevery = (marker_offset, max(1, min(timestep_count // 4, 4)))
         plot_rollout_mse_curve(
             evaluation,
             label=resolved_label,
             ax=ax,
             title=title,
             linewidth=linewidth,
+            marker=marker,
+            linestyle=linestyle,
+            markevery=markevery,
+            alpha=0.95,
         )
         plotted_evaluations.append(evaluation)
 

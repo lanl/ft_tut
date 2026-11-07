@@ -5,6 +5,7 @@ import importlib
 import json
 import random
 import sys
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -169,14 +170,15 @@ def _timestamp_label() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def append_run_log(run_dir: Path, message: str) -> Path:
+def append_run_log(run_dir: Path, message: str, echo: bool = False) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "training.log"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted = f"[{timestamp}] {message}"
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(formatted + "\n")
-    print(formatted)
+    if echo:
+        print(formatted)
     return log_path
 
 
@@ -467,6 +469,7 @@ def fine_tune(
     seed: int = 42,
     target_channels: int = 5,
     pad_value: float = 1.0,
+    echo_logs: bool = False,
 ) -> dict:
     tutorial_paths = paths or TutorialPaths.discover()
     tutorial_paths.ensure_runtime_dirs()
@@ -514,6 +517,7 @@ def fine_tune(
             f"val_trajectories={len(val_indices)}, test_trajectories={len(test_indices)}, "
             f"target_channels={target_channels}, pad_value={pad_value}"
         ),
+        echo=echo_logs,
     )
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -524,6 +528,7 @@ def fine_tune(
             f"Created data loaders: train_batches={len(train_loader)}, val_batches={len(val_loader)}, "
             f"batch_size={batch_size}, num_workers={num_workers}"
         ),
+        echo=echo_logs,
     )
     runtime_device = _resolve_device(torch, device)
     model_details = load_spus_36m_training_model(
@@ -544,15 +549,18 @@ def fine_tune(
             f"train_trajectories={len(train_indices)}, val_trajectories={len(val_indices)}, "
             f"test_trajectories={len(test_indices)}, device={runtime_device}"
         ),
+        echo=echo_logs,
     )
 
+    fine_tune_started_at = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    fine_tune_start_time = time.perf_counter()
     history = []
     best_val_loss = float('inf')
     best_checkpoint = None
 
     try:
         for epoch in range(epochs):
-            append_run_log(run_dir, f"Starting epoch {epoch + 1}/{epochs}")
+            append_run_log(run_dir, f"Starting epoch {epoch + 1}/{epochs}", echo=echo_logs)
             model.train()
             train_loss_sum = 0.0
             train_batches = 0
@@ -590,6 +598,7 @@ def fine_tune(
             append_run_log(
                 run_dir,
                 f"Completed epoch {epoch + 1}/{epochs}: train_loss={average_train_loss:.6f}, val_loss={average_val_loss:.6f}",
+                echo=echo_logs,
             )
             if average_val_loss < best_val_loss:
                 best_val_loss = average_val_loss
@@ -602,11 +611,40 @@ def fine_tune(
                 append_run_log(
                     run_dir,
                     f"New best checkpoint at epoch {epoch + 1}: val_loss={best_val_loss:.6f}",
+                    echo=echo_logs,
                 )
     finally:
         close_all_datasets(train_set)
         close_all_datasets(val_set)
         close_all_datasets(test_set)
+
+    fine_tune_duration_seconds = time.perf_counter() - fine_tune_start_time
+    fine_tune_finished_at = datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    fine_tune_metrics = {
+        'requested_num_train_trajectories': num_train_trajectories,
+        'num_train_trajectories': len(train_indices),
+        'num_val_trajectories': len(val_indices),
+        'num_test_trajectories': len(test_indices),
+        'num_train_samples': len(train_set),
+        'num_val_samples': len(val_set),
+        'num_test_samples': len(test_set),
+        'num_train_batches_per_epoch': len(train_loader),
+        'num_val_batches_per_epoch': len(val_loader),
+        'fine_tune_started_at': fine_tune_started_at,
+        'fine_tune_finished_at': fine_tune_finished_at,
+        'fine_tune_duration_seconds': fine_tune_duration_seconds,
+        'fine_tune_duration_minutes': fine_tune_duration_seconds / 60.0,
+    }
+    append_run_log(
+        run_dir,
+        (
+            "Fine-tune metrics: "
+            f"train_samples={fine_tune_metrics['num_train_samples']}, "
+            f"train_batches_per_epoch={fine_tune_metrics['num_train_batches_per_epoch']}, "
+            f"duration_seconds={fine_tune_metrics['fine_tune_duration_seconds']:.3f}"
+        ),
+        echo=echo_logs,
+    )
 
     metadata = {
         'pretrained_model_id': pretrained_model_id,
@@ -623,8 +661,12 @@ def fine_tune(
         'num_train_trajectories': len(train_indices),
         'num_val_trajectories': len(val_indices),
         'num_test_trajectories': len(test_indices),
+        'num_train_samples': len(train_set),
+        'num_val_samples': len(val_set),
+        'num_test_samples': len(test_set),
         'split_info': split_info,
         'history': history,
+        'fine_tune_metrics': fine_tune_metrics,
         'training_repo_path': str(model_details['training_repo_path']),
         'log_path': str(log_path),
         'dependency_status': dependency_status,
@@ -636,12 +678,13 @@ def fine_tune(
         'best_val_loss': best_val_loss,
     }
     checkpoint_path = save_checkpoint(run_dir, checkpoint, metadata, filename='best_checkpoint.pt', torch_module=torch)
-    append_run_log(run_dir, f"Finished fine-tune. Saved checkpoint to {checkpoint_path}")
+    append_run_log(run_dir, f"Finished fine-tune. Saved checkpoint to {checkpoint_path}", echo=echo_logs)
     return {
         'run_dir': run_dir,
         'log_path': log_path,
         'checkpoint_path': checkpoint_path,
         'metadata': metadata,
+        'fine_tune_metrics': fine_tune_metrics,
         'best_val_loss': best_val_loss,
         'history': history,
     }
@@ -665,6 +708,7 @@ def infer_rollout(
     split_name: str = 'test',
     target_channels: int = 5,
     pad_value: float = 1.0,
+    echo_logs: bool = False,
 ) -> dict:
     tutorial_paths = paths or TutorialPaths.discover()
     tutorial_paths.ensure_runtime_dirs()
@@ -819,6 +863,7 @@ def evaluate_rollout(
     preview_trajectory_count: int = 5,
     rollout_outcome: Optional[dict] = None,
     rollout_run_dir: Optional[str | Path] = None,
+    echo_logs: bool = False,
 ) -> dict:
     if rollout_outcome is not None and rollout_run_dir is not None:
         raise ValueError("Provide at most one of rollout_outcome or rollout_run_dir.")
@@ -842,6 +887,7 @@ def evaluate_rollout(
             split_name=split_name,
             target_channels=target_channels,
             pad_value=pad_value,
+            echo_logs=echo_logs,
         )
     elif rollout_outcome is None:
         rollout_outcome = {
@@ -876,6 +922,7 @@ def evaluate_rollout(
             f"Evaluation complete: split={split_name}, num_trajectories={len(rollout_payload['predictions'])}, "
             f"average_mse={evaluation['average_mse']:.6f}"
         ),
+        echo=echo_logs,
     )
     return {
         **rollout_outcome,

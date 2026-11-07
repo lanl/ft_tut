@@ -30,10 +30,12 @@ FNS_KF_PATTERNS = [
 
 SPUS_MODEL_REPO_IDS = [
     "siddik-lanl/spus-pde-unet-36m-v2",
+    "siddik-lanl/spus-pde-unet-9m-v2",
+    "siddik-lanl/spus-pde-unet-36m-v2-one-eighth-pretraining-data",
     "siddik-lanl/spus-pde-unet-36m-v2-fns-kf",
     "siddik-lanl/spus-pde-unet-36m-v2-fns-kf-32",
     "siddik-lanl/spus-pde-unet-36m-v2-fns-kf-256",
-]
+    "siddik-lanl/spus-pde-unet-36m-fns-kf-scratch-128"]
 SPUS_MODEL_GIT_BASE_URL = "https://huggingface.co"
 SPUS_MODEL_PATTERNS = [
     "*.json",
