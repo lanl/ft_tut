@@ -15,6 +15,24 @@ except ImportError:
 
 
 class TestPlotting(unittest.TestCase):
+    def test_animate_ground_truth_trajectories_row_requires_indices(self) -> None:
+        from spus_ft.plotting import animate_ground_truth_trajectories_row
+
+        with self.assertRaisesRegex(ValueError, 'non-empty sequence'):
+            animate_ground_truth_trajectories_row('/tmp/FNS-KF.nc', split_trajectory_indices=[])
+
+    def test_animate_rollout_trajectories_comparison_requires_indices(self) -> None:
+        from spus_ft.plotting import animate_rollout_trajectories_comparison
+
+        with self.assertRaisesRegex(ValueError, 'non-empty sequence'):
+            animate_rollout_trajectories_comparison(payload={'predictions': [], 'targets': []}, trajectory_indices=[])
+
+    def test_animate_multi_model_rollout_comparison_requires_sources(self) -> None:
+        from spus_ft.plotting import animate_multi_model_rollout_comparison
+
+        with self.assertRaisesRegex(ValueError, 'Provide run_dirs or payloads'):
+            animate_multi_model_rollout_comparison()
+
     def test_build_evaluation_label_uses_training_count(self) -> None:
         from spus_ft.plotting import build_evaluation_label
 
@@ -206,6 +224,41 @@ class TestPlotting(unittest.TestCase):
             pyplot.close(result['figure'])
 
     @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
+    def test_plot_fine_tune_history_writes_image(self) -> None:
+        import matplotlib.pyplot as pyplot
+
+        from spus_ft.plotting import plot_fine_tune_history
+
+        with tempfile.TemporaryDirectory(prefix='spus-ft-plot-history-') as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            save_path = tmp_path / 'fine_tune_history.png'
+            outcome = {
+                'history': [
+                    {'epoch': 1, 'train_loss': 1.0e-2, 'val_loss': 2.0e-2},
+                    {'epoch': 2, 'train_loss': 6.0e-3, 'val_loss': 1.3e-2},
+                    {'epoch': 3, 'train_loss': 3.0e-3, 'val_loss': 7.0e-3},
+                ]
+            }
+
+            result = plot_fine_tune_history(outcome, save_path=save_path)
+
+            self.assertTrue(save_path.is_file())
+            self.assertEqual(result['epochs'], [1, 2, 3])
+            self.assertEqual(result['train_loss'], [1.0e-2, 6.0e-3, 3.0e-3])
+            self.assertEqual(result['val_loss'], [2.0e-2, 1.3e-2, 7.0e-3])
+            self.assertEqual(result['ax'].get_xlabel(), 'Epoch')
+            self.assertEqual(result['ax'].get_ylabel(), 'MSE (log scale)')
+            self.assertEqual(result['ax'].get_yscale(), 'log')
+            self.assertEqual(len(result['ax'].lines), 2)
+            pyplot.close(result['figure'])
+
+    def test_plot_fine_tune_history_requires_non_empty_history(self) -> None:
+        from spus_ft.plotting import plot_fine_tune_history
+
+        with self.assertRaisesRegex(ValueError, 'non-empty history'):
+            plot_fine_tune_history({'history': []})
+
+    @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
     def test_plot_full_rollout_frames_writes_image(self) -> None:
         import matplotlib.pyplot as pyplot
 
@@ -258,6 +311,7 @@ class TestPlotting(unittest.TestCase):
     @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
     def test_plot_ground_truth_trajectory_frames_writes_image(self) -> None:
         import matplotlib.pyplot as pyplot
+        import numpy as np
 
         from spus_ft.plotting import plot_ground_truth_trajectory_frames
 
@@ -313,4 +367,197 @@ class TestPlotting(unittest.TestCase):
             self.assertIsNone(result['subtitle'])
             self.assertIn('Split trajectory index 1 (global trajectory 3) for Channel 0 (density)', result['figure']._suptitle.get_text())
             self.assertEqual(result['colorbar'].ax.get_xlabel(), 'Ground-truth Channel 0 (density) value')
+            rendered = result['axes'][0][0].images[0].get_array()
+            np.testing.assert_allclose(rendered, np.array([[0.0, 2.0], [1.0, 3.0]]))
             pyplot.close(result['figure'])
+
+    @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
+    def test_animate_ground_truth_trajectories_row_returns_animation(self) -> None:
+        import matplotlib.pyplot as pyplot
+        import numpy as np
+
+        from spus_ft.plotting import animate_ground_truth_trajectories_row
+
+        class FakeTrajectoryTensor:
+            def __init__(self, value):
+                self.value = value
+
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return self
+
+            def tolist(self):
+                return self.value
+
+        trajectories = [
+            [
+                [[[0.0, 1.0], [2.0, 3.0]]],
+                [[[10.0, 11.0], [12.0, 13.0]]],
+            ],
+            [
+                [[[100.0, 101.0], [102.0, 103.0]]],
+                [[[110.0, 111.0], [112.0, 113.0]]],
+            ],
+        ]
+
+        with patch('spus_ft.dataloader.infer_variable_name', return_value='solution'), patch(
+            'spus_ft.dataloader.get_train_val_test_trajectory_indices_from_file',
+            return_value=([0], [1], [2, 3, 4], {'shape': [5, 2, 1, 2, 2]}),
+        ), patch(
+            'spus_ft.dataloader.load_trajectories_by_indices',
+            return_value=(FakeTrajectoryTensor(trajectories), 'solution'),
+        ):
+            result = animate_ground_truth_trajectories_row(
+                dataset_path='/tmp/FNS-KF.nc',
+                split_name='test',
+                split_trajectory_indices=[0, 2],
+                channel_index=0,
+                channel_names=['density'],
+                interval=200,
+            )
+
+        self.assertEqual(result['selected_trajectory_indices'], [2, 4])
+        self.assertEqual(result['split_trajectory_indices'], [0, 2])
+        self.assertEqual(result['num_frames'], 2)
+        self.assertEqual(result['interval'], 200)
+        self.assertEqual(result['axes'].shape, (1, 2))
+        self.assertEqual(result['colorbar'].ax.get_xlabel(), 'Channel 0 (density) value')
+        self.assertEqual(result['title'].get_text(), 'Ground-truth trajectories (test split)\nTimestep 1 / 2')
+        rendered = result['axes'][0][0].images[0].get_array()
+        np.testing.assert_allclose(rendered, np.array([[0.0, 2.0], [1.0, 3.0]]))
+        pyplot.close(result['figure'])
+
+    @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
+    def test_animate_rollout_trajectories_comparison_returns_animation(self) -> None:
+        import matplotlib.pyplot as pyplot
+        import numpy as np
+
+        from spus_ft.plotting import animate_rollout_trajectories_comparison
+
+        payload = {
+            'predictions': [
+                [
+                    [[[0.0, 1.0], [2.0, 3.0]]],
+                    [[[10.0, 11.0], [12.0, 13.0]]],
+                ],
+                [
+                    [[[100.0, 101.0], [102.0, 103.0]]],
+                    [[[110.0, 111.0], [112.0, 113.0]]],
+                ],
+            ],
+            'targets': [
+                [
+                    [[[1.0, 1.0], [1.0, 1.0]]],
+                    [[[2.0, 2.0], [2.0, 2.0]]],
+                ],
+                [
+                    [[[90.0, 90.0], [90.0, 90.0]]],
+                    [[[95.0, 95.0], [95.0, 95.0]]],
+                ],
+            ],
+            'metadata': {
+                'split_name': 'test',
+                'num_train_trajectories': 1,
+                'rollout_source': {'checkpoint_path': None},
+            },
+        }
+
+        result = animate_rollout_trajectories_comparison(
+            payload=payload,
+            trajectory_indices=[0, 1],
+            channel_index=0,
+            channel_names=['density'],
+            interval=180,
+        )
+
+        self.assertEqual(result['trajectory_indices'], [0, 1])
+        self.assertEqual(result['num_frames'], 2)
+        self.assertEqual(result['interval'], 180)
+        self.assertEqual(result['axes'].shape, (3, 2))
+        self.assertEqual(
+            result['colorbar'].ax.get_xlabel(),
+            'Channel 0 (density) value — pretrained (1 train trajectories) [test]',
+        )
+        self.assertEqual(
+            result['difference_colorbar'].ax.get_xlabel(),
+            'Channel 0 (density) difference (predicted − true) — pretrained (1 train trajectories) [test]',
+        )
+        self.assertEqual(result['title'].get_text(), 'SPUS rollout trajectory comparison\nTimestep 1 / 2')
+        rendered_prediction = result['axes'][0][0].images[0].get_array()
+        rendered_difference = result['axes'][2][0].images[0].get_array()
+        np.testing.assert_allclose(rendered_prediction, np.array([[0.0, 2.0], [1.0, 3.0]]))
+        np.testing.assert_allclose(rendered_difference, np.array([[-1.0, 1.0], [0.0, 2.0]]))
+        pyplot.close(result['figure'])
+
+    @unittest.skipUnless(HAS_MATPLOTLIB, 'matplotlib is not installed')
+    def test_animate_multi_model_rollout_comparison_returns_animation(self) -> None:
+        import matplotlib.pyplot as pyplot
+        import numpy as np
+
+        from spus_ft.plotting import animate_multi_model_rollout_comparison
+
+        payloads = [
+            {
+                'predictions': [
+                    [
+                        [[[0.0, 1.0], [2.0, 3.0]]],
+                        [[[10.0, 11.0], [12.0, 13.0]]],
+                    ]
+                ],
+                'targets': [
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]]],
+                        [[[2.0, 2.0], [2.0, 2.0]]],
+                    ]
+                ],
+                'metadata': {
+                    'split_name': 'test',
+                    'num_train_trajectories': 1,
+                    'rollout_source': {'checkpoint_path': None},
+                },
+            },
+            {
+                'predictions': [
+                    [
+                        [[[100.0, 101.0], [102.0, 103.0]]],
+                        [[[110.0, 111.0], [112.0, 113.0]]],
+                    ]
+                ],
+                'targets': [
+                    [
+                        [[[1.0, 1.0], [1.0, 1.0]]],
+                        [[[2.0, 2.0], [2.0, 2.0]]],
+                    ]
+                ],
+                'metadata': {
+                    'split_name': 'test',
+                    'num_train_trajectories': 256,
+                    'rollout_source': {'checkpoint_path': '/tmp/model.pt'},
+                },
+            },
+        ]
+
+        result = animate_multi_model_rollout_comparison(
+            payloads=payloads,
+            trajectory_index=0,
+            channel_index=0,
+            channel_names=['density'],
+            model_labels=['pretrained', 'fine-tuned'],
+            interval=150,
+        )
+
+        self.assertEqual(result['trajectory_index'], 0)
+        self.assertEqual(result['num_frames'], 2)
+        self.assertEqual(result['interval'], 150)
+        self.assertEqual(result['axes'].shape, (3, 2))
+        self.assertEqual(result['model_labels'], ['pretrained', 'fine-tuned'])
+        self.assertEqual(result['value_range'], {'min': 1.0, 'max': 2.0})
+        self.assertTrue(result['use_target_scale'])
+        self.assertEqual(result['title'].get_text(), 'SPUS multi-model rollout comparison\nTimestep 1 / 2')
+        rendered_prediction = result['axes'][0][1].images[0].get_array()
+        rendered_difference = result['axes'][2][0].images[0].get_array()
+        np.testing.assert_allclose(rendered_prediction, np.array([[100.0, 102.0], [101.0, 103.0]]))
+        np.testing.assert_allclose(rendered_difference, np.array([[-1.0, 1.0], [0.0, 2.0]]))
+        pyplot.close(result['figure'])
